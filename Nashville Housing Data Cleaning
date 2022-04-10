@@ -1,0 +1,147 @@
+DROP TABLE IF EXISTS nashvillehousing
+--CREATING TABLE
+CREATE TABLE NashvilleHousing (
+UniqueID  VARCHAR(50),
+ParcelID   VARCHAR(50),
+LandUse		 VARCHAR(50),
+PropertyAddress  VARCHAR(50),
+SaleDate TIMESTAMP, 
+SalePrice VARCHAR(50),
+LegalReference  VARCHAR(50),
+SoldAsVacant VARCHAR(50),
+OwnerName  VARCHAR(100),
+OwnerAddress VARCHAR(50),
+Acreage NUMERIC,
+TaxDistrict	VARCHAR(40),
+LandValue NUMERIC,
+BuildingValue	NUMERIC,
+TotalValue  NUMERIC,
+YearBuilt	INT,
+Bedrooms	INT,
+FullBath	INT,
+HalfBath INT
+)
+
+SELECT *
+FROM nashvillehousing
+WHERE propertyaddress is null
+--CLEANING DATA IN SQL QUERIES
+--1.Standardizing Date Formats
+SELECT saledate
+FROM nashvillehousing
+
+ALTER TABLE nashvillehousing alter column saledate TYPE DATE;
+
+--2. Populate Property Address Data
+SELECT *
+FROM nashvillehousing
+--WHERE propertyaddress is null 
+ORDER BY parcelid
+
+SELECT nh1.parcelid, nh1.propertyaddress, nh2.parcelid, nh2.propertyaddress, COALESCE(nh1.propertyaddress, nh2.propertyaddress)
+FROM nashvillehousing as nh1
+JOIN nashvillehousing as nh2 
+	ON nh1.parcelid =nh2.parcelid
+	AND nh1.uniqueid <> nh2.uniqueid
+WHERE nh1.propertyaddress is null
+
+--UPDATE nashviilehousing 
+--SET propertyaddress= COALESCE(nh1.propertyaddress, nh2.propertyaddress)
+--FROM nashvillehousing as nh1 
+--JOIN nashvillehousing as nh2 
+	--ON nh1.parcelid =nh2.parcelid
+	--AND nh1.uniqueid <> nh2.uniqueid
+--WHERE nh1.propertyaddress is null
+
+
+UPDATE nashvillehousing as nh1
+SET propertyaddress = nh2.propertyaddress
+FROM nashvillehousing as nh2
+WHERE nh1.propertyaddress is null and nh1.parcelid =nh2.parcelid and nh2.propertyaddress is not null
+	
+
+
+
+SELECT propertyaddress
+FROM nashvillehousing
+--3. Breaking out propertyaddress into individual columns (address, city)
+SELECT SUBSTRING(propertyaddress,1, strpos ( propertyaddress , ',')-1) as address ,
+SUBSTRING (propertyaddress, strpos(propertyaddress,',') +1, LENGTH(propertyaddress) ) as City
+FROM nashvillehousing 
+
+ALTER TABLE nashvillehousing 
+ADD propertysplitaddress VARCHAR (50)
+
+UPDATE nashvillehousing 
+SET propertysplitaddress = SUBSTRING(propertyaddress,1, strpos ( propertyaddress , ',')-1)
+
+ALTER TABLE nashvillehousing
+ADD propertysplitcity VARCHAR(50)
+
+UPDATE nashvillehousing 
+SET propertysplitcity = SUBSTRING(propertyaddress, strpos(propertyaddress,',') +1, LENGTH(propertyaddress))
+
+--4. Breaking out owneraddress into individual columns (address, city, state)
+SELECT owneraddress 
+FROM nashvillehousing
+
+SELECT SPLIT_PART (owneraddress, ',' ,1), 
+SPLIT_PART (owneraddress, ',' ,2),
+SPLIT_PART (owneraddress, ',' ,3)
+FROM nashvillehousing 
+
+ALTER TABLE nashvillehousing 
+ADD ownersplitaddress VARCHAR (50)
+
+UPDATE nashvillehousing 
+SET ownersplitaddress = SPLIT_PART (owneraddress, ',' ,1)
+
+ALTER TABLE nashvillehousing
+ADD ownersplitcity VARCHAR(50)
+
+UPDATE nashvillehousing 
+SET ownersplitcity = SPLIT_PART (owneraddress, ',' ,2)
+
+ALTER TABLE nashvillehousing
+ADD ownersplitstate VARCHAR(50)
+
+UPDATE nashvillehousing 
+SET ownersplitstate = SPLIT_PART (owneraddress, ',' ,3)
+
+--5. Change Y and N to Yes and NO in "sold as vacant " field
+SELECT Distinct (soldasvacant), COUNT(soldasvacant)
+FROM nashvillehousing 
+GROUP BY soldasvacant
+ORDER BY 2
+
+SELECT soldasvacant,
+	CASE WHEN soldasvacant= 'Y' THEN 'Yes'
+		 WHEN soldasvacant= 'N'	THEN 'No'
+		 ELSE soldasvacant 
+		 END
+FROM nashvillehousing
+
+UPDATE nashvillehousing 
+SET soldasvacant = CASE WHEN soldasvacant= 'Y' THEN 'Yes'
+		 WHEN soldasvacant= 'N'	THEN 'No'
+		 ELSE soldasvacant 
+		 END
+
+--6. Remove duplicates
+WITH row_numcte as (
+	SELECT uniqueid
+	FROM
+		(SELECT uniqueid, ROW_NUMBER() OVER (Partition by parcelid , propertyaddress, saleprice, saledate, legalreference order by uniqueid) as row_num 
+		FROM nashvillehousing) as duplicates
+	WHERE row_num>1
+)
+DELETE 
+FROM nashvillehousing
+WHERE uniqueid IN (SELECT * FROM row_numcte )
+
+--Delete unused columns
+ALTER TABLE nashvillehousing
+DROP COLUMN owneraddress,
+DROP COLUMN  propertyaddress,
+DROP COLUMN  taxdistrict
+
